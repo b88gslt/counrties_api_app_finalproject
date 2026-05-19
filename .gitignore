@@ -1,0 +1,25 @@
+*.iml
+.gradle
+/local.properties
+
+# IntelliJ / Android Studio — IDE-мусор не коммитим
+.idea/
+*.iws
+*.ipr
+
+.DS_Store
+/build
+/app/build
+**/build/
+.kotlin/
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# VS Code
+.vscode/
+
+# Crash logs / heap dumps
+*.hprof
+.gradletasknamecache
