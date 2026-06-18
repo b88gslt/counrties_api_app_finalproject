@@ -33,26 +33,29 @@ class CountriesRepository @Inject constructor(
     suspend fun setSortCountriesAz(enabled: Boolean) = preferences.setSortCountriesAz(enabled)
 
     /**
-     * Избранное активного профиля. flatMapLatest перестраивает Flow при переключении профиля —
-     * у каждого пользователя свой список.
+     * Избранное активного профиля одним потоком Room.
+     * flatMapLatest перестраивает подписку при переключении профиля.
      */
-    val favorites: Flow<Set<String>> = profileRepository.activeProfile.flatMapLatest { p ->
-        if (p == null) flowOf(emptyList())
-        else favoriteDao.observeByProfile(p.id)
-    }.map { list -> list.map { it.countryCode }.toSet() }
-
-    /** Страны из снимков в favorites активного профиля — fallback на случай пустого кэша. */
-    val favoriteCountriesFromRoom: Flow<List<Country>> =
+    val favoritesBundle: Flow<FavoritesBundle> =
         profileRepository.activeProfile.flatMapLatest { p ->
-            if (p == null) flowOf(emptyList())
-            else favoriteDao.observeByProfile(p.id)
-        }.map { list ->
-            list.mapNotNull { entity ->
-                entity.countrySnapshotJson?.let { raw ->
-                    runCatching { json.decodeFromString<Country>(raw) }.getOrNull()
-                }
+            if (p == null) flowOf(FavoritesBundle.EMPTY)
+            else favoriteDao.observeByProfile(p.id).map { list ->
+                FavoritesBundle(
+                    codes = list.map { it.countryCode }.toSet(),
+                    snapshots = list.mapNotNull { entity ->
+                        entity.countrySnapshotJson?.let { raw ->
+                            runCatching { json.decodeFromString<Country>(raw) }.getOrNull()
+                        }
+                    }
+                )
             }
         }
+
+    /** @see favoritesBundle */
+    val favorites: Flow<Set<String>> = favoritesBundle.map { it.codes }
+
+    /** @see favoritesBundle */
+    val favoriteCountriesFromRoom: Flow<List<Country>> = favoritesBundle.map { it.snapshots }
 
     // ---- API calls ----
 
@@ -75,9 +78,9 @@ class CountriesRepository @Inject constructor(
             countries
         } catch (e: Exception) {
             val cached = readAllFromCache()
-            val filtered = if (query.isBlank()) cached
+            if (cached.isEmpty()) throw e
+            if (query.isBlank()) cached
             else cached.filter { it.name.common.contains(query, ignoreCase = true) }
-            if (filtered.isNotEmpty()) filtered else throw e
         }
     }
 
@@ -93,8 +96,9 @@ class CountriesRepository @Inject constructor(
             writeToCache(countries)
             countries
         } catch (e: Exception) {
-            val cached = readAllFromCache().filter { it.region.equals(region, ignoreCase = true) }
-            if (cached.isNotEmpty()) cached else throw e
+            val cached = readAllFromCache()
+            if (cached.isEmpty()) throw e
+            cached.filter { it.region.equals(region, ignoreCase = true) }
         }
     }
 
@@ -144,5 +148,14 @@ class CountriesRepository @Inject constructor(
     suspend fun isFavorite(countryCode: String): Boolean {
         val profileId = profileRepository.activeProfile.first()?.id ?: return false
         return favoriteDao.isFavorite(countryCode, profileId)
+    }
+}
+
+data class FavoritesBundle(
+    val codes: Set<String>,
+    val snapshots: List<Country>
+) {
+    companion object {
+        val EMPTY = FavoritesBundle(emptySet(), emptyList())
     }
 }

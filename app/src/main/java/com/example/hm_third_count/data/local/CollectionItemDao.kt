@@ -12,9 +12,15 @@ interface CollectionItemDao {
     @Query("SELECT * FROM collection_items WHERE collectionId = :collectionId ORDER BY addedAt DESC")
     fun observeByCollection(collectionId: Long): Flow<List<CollectionItemEntity>>
 
-    /** Все коллекции, содержащие эту страну (для деталки: «в каких коллекциях я уже добавлен»). */
-    @Query("SELECT collectionId FROM collection_items WHERE countryCode = :code")
-    fun observeCollectionsForCountry(code: String): Flow<List<Long>>
+    /** Коллекции активного профиля, содержащие эту страну (для деталки). */
+    @Query(
+        """
+        SELECT ci.collectionId FROM collection_items ci
+        INNER JOIN collections c ON c.id = ci.collectionId
+        WHERE ci.countryCode = :code AND c.profileId = :profileId
+        """
+    )
+    fun observeCollectionsForCountry(code: String, profileId: Long): Flow<List<Long>>
 
     /**
      * Все элементы коллекций активного профиля одним JOIN'ом — удобно для combine на главной.

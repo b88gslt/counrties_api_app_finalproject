@@ -16,9 +16,8 @@ import dagger.assisted.AssistedInject
 import kotlinx.coroutines.flow.first
 
 /**
- * Чистка устаревших записей кэша. Сохраняем только страны, которые «зацеплены»
- * пользовательскими данными (visited, wishlist, collections, recent_views) —
- * остальное удаляем, если оно старше cleanupThreshold.
+ * Чистка устаревших записей кэша. Сохраняем страны, «зацепленные» данными
+ * **любого** профиля (visited, wishlist, collections, recent_views).
  */
 @HiltWorker
 class CleanupStaleCacheWorker @AssistedInject constructor(
@@ -34,14 +33,17 @@ class CleanupStaleCacheWorker @AssistedInject constructor(
 ) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result = runCatching {
-        val profile = profileRepository.activeProfile.first() ?: return Result.success()
+        val profiles = profileRepository.profiles.first()
+        if (profiles.isEmpty()) return Result.success()
 
         val pinned = buildSet {
-            visitDao.observeByProfile(profile.id).first().forEach { add(it.countryCode) }
-            wishlistDao.observeByProfile(profile.id).first().forEach { add(it.countryCode) }
-            collectionItemDao.observeAllForProfile(profile.id).first()
-                .forEach { add(it.countryCode) }
-            recentViewDao.observeByProfile(profile.id).first().forEach { add(it.countryCode) }
+            profiles.forEach { profile ->
+                visitDao.observeByProfile(profile.id).first().forEach { add(it.countryCode) }
+                wishlistDao.observeByProfile(profile.id).first().forEach { add(it.countryCode) }
+                collectionItemDao.observeAllForProfile(profile.id).first()
+                    .forEach { add(it.countryCode) }
+                recentViewDao.observeByProfile(profile.id).first().forEach { add(it.countryCode) }
+            }
         }
 
         val threshold = clock.nowMillis() - CLEANUP_AGE_MS

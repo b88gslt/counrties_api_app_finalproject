@@ -20,4 +20,7 @@ interface VisitDao {
 
     @Query("DELETE FROM visits WHERE countryCode = :code AND profileId = :profileId")
     suspend fun delete(code: String, profileId: Long)
+
+    @Query("DELETE FROM visits WHERE profileId = :profileId")
+    suspend fun deleteByProfile(profileId: Long)
 }

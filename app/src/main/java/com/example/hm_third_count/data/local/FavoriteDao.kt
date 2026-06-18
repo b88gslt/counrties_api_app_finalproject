@@ -20,4 +20,7 @@ interface FavoriteDao {
 
     @Query("SELECT EXISTS(SELECT 1 FROM favorites WHERE countryCode = :code AND profileId = :profileId)")
     suspend fun isFavorite(code: String, profileId: Long): Boolean
+
+    @Query("DELETE FROM favorites WHERE profileId = :profileId")
+    suspend fun deleteByProfile(profileId: Long)
 }

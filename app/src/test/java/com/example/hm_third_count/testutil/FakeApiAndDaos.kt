@@ -88,5 +88,9 @@ class FakeFavoriteDao : FavoriteDao {
     override suspend fun isFavorite(code: String, profileId: Long): Boolean =
         data.value.containsKey(code to profileId)
 
+    override suspend fun deleteByProfile(profileId: Long) {
+        data.value = data.value.filterValues { it.profileId != profileId }
+    }
+
     fun snapshot(): List<FavoriteEntity> = data.value.values.toList()
 }

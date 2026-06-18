@@ -25,13 +25,11 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.example.hm_third_count.data.model.Country
 import com.example.hm_third_count.presentation.profile.ProfileAvatarChip
 import com.example.hm_third_count.presentation.profile.ProfilePickerDialog
-import com.example.hm_third_count.presentation.profile.ProfileSwitcherViewModel
+import com.example.hm_third_count.presentation.profile.ProfileSwitcherUiState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -40,6 +38,11 @@ fun CountriesScreen(
     onEvent: (CountriesEvent) -> Unit,
     onCountryClick: (String) -> Unit,
     onOpenRecent: () -> Unit,
+    profileState: ProfileSwitcherUiState,
+    onSwitchProfile: (Long) -> Unit,
+    onCreateProfile: (String, String) -> Unit,
+    onRenameProfile: (Long, String) -> Unit,
+    onDeleteProfile: (Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -62,7 +65,13 @@ fun CountriesScreen(
             IconButton(onClick = onOpenRecent) {
                 Icon(Icons.Default.History, contentDescription = "Recently viewed")
             }
-            ProfileSwitcherSlot()
+            ProfileSwitcherSlot(
+                profileState = profileState,
+                onSwitchProfile = onSwitchProfile,
+                onCreateProfile = onCreateProfile,
+                onRenameProfile = onRenameProfile,
+                onDeleteProfile = onDeleteProfile
+            )
         }
         
         RegionFilter(
@@ -163,30 +172,29 @@ private fun RegionFilter(
     }
 }
 
-/**
- * Самодостаточный аватар-чип с быстрым переключателем профиля.
- * Имеет собственную ViewModel — экран остаётся stateless относительно профилей.
- */
 @Composable
-private fun ProfileSwitcherSlot(viewModel: ProfileSwitcherViewModel = hiltViewModel()) {
-    val state by viewModel.uiState.collectAsStateWithLifecycle()
+private fun ProfileSwitcherSlot(
+    profileState: ProfileSwitcherUiState,
+    onSwitchProfile: (Long) -> Unit,
+    onCreateProfile: (String, String) -> Unit,
+    onRenameProfile: (Long, String) -> Unit,
+    onDeleteProfile: (Long) -> Unit
+) {
     var showPicker by remember { mutableStateOf(false) }
 
     ProfileAvatarChip(
-        profile = state.activeProfile,
+        profile = profileState.activeProfile,
         onClick = { showPicker = true }
     )
 
     if (showPicker) {
         ProfilePickerDialog(
-            profiles = state.profiles,
-            activeId = state.activeProfileId,
-            onSwitch = {
-                viewModel.switch(it)
-            },
-            onCreate = { name, color -> viewModel.create(name, color) },
-            onRename = { id, name -> viewModel.rename(id, name) },
-            onDelete = { viewModel.delete(it) },
+            profiles = profileState.profiles,
+            activeId = profileState.activeProfileId,
+            onSwitch = onSwitchProfile,
+            onCreate = onCreateProfile,
+            onRename = onRenameProfile,
+            onDelete = onDeleteProfile,
             onDismiss = { showPicker = false }
         )
     }
@@ -460,7 +468,7 @@ private fun CountriesList(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(countries) { country ->
+            items(countries, key = { it.code }) { country ->
                 CountryItem(
                     country = country,
                     isFavorite = favorites.contains(country.code),

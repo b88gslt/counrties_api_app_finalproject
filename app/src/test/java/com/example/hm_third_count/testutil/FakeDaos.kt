@@ -69,6 +69,10 @@ class FakeVisitDao : VisitDao {
         data.value = data.value - (code to profileId)
     }
 
+    override suspend fun deleteByProfile(profileId: Long) {
+        data.value = data.value.filterKeys { it.second != profileId }
+    }
+
     fun snapshot(): List<VisitEntity> = data.value.values.toList()
 }
 
@@ -89,6 +93,10 @@ class FakeWishlistDao : WishlistDao {
     override suspend fun delete(code: String, profileId: Long) {
         data.value = data.value - (code to profileId)
     }
+
+    override suspend fun deleteByProfile(profileId: Long) {
+        data.value = data.value.filterKeys { it.second != profileId }
+    }
 }
 
 class FakeCountryNoteDao : CountryNoteDao {
@@ -108,21 +116,35 @@ class FakeCountryNoteDao : CountryNoteDao {
     override suspend fun delete(code: String, profileId: Long) {
         data.value = data.value - (code to profileId)
     }
+
+    override suspend fun deleteByProfile(profileId: Long) {
+        data.value = data.value.filterKeys { it.second != profileId }
+    }
 }
 
 class FakeCollectionItemDao : CollectionItemDao {
     private val data = MutableStateFlow<Map<Pair<Long, String>, CollectionItemEntity>>(emptyMap())
+    private val collectionProfiles = mutableMapOf<Long, Long>()
+
+    fun assignCollectionToProfile(collectionId: Long, profileId: Long) {
+        collectionProfiles[collectionId] = profileId
+    }
 
     override fun observeByCollection(collectionId: Long): Flow<List<CollectionItemEntity>> =
         data.map { map -> map.values.filter { it.collectionId == collectionId } }
 
-    override fun observeCollectionsForCountry(code: String): Flow<List<Long>> =
-        data.map { map -> map.values.filter { it.countryCode == code }.map { it.collectionId } }
+    override fun observeCollectionsForCountry(code: String, profileId: Long): Flow<List<Long>> =
+        data.map { map ->
+            map.values
+                .filter { it.countryCode == code && collectionProfiles[it.collectionId] == profileId }
+                .map { it.collectionId }
+        }
 
     override fun observeAllForProfile(profileId: Long): Flow<List<CollectionItemTuple>> =
         data.map { map ->
-            // Без JOIN'а на профиль возвращаем все — для тестов мы создаём только один профиль.
-            map.values.map { CollectionItemTuple(it.collectionId, it.countryCode) }
+            map.values
+                .filter { collectionProfiles[it.collectionId] == profileId }
+                .map { CollectionItemTuple(it.collectionId, it.countryCode) }
         }
 
     override suspend fun upsert(entity: CollectionItemEntity) {

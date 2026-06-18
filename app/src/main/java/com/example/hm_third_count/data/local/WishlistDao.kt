@@ -20,4 +20,7 @@ interface WishlistDao {
 
     @Query("DELETE FROM wishlist WHERE countryCode = :code AND profileId = :profileId")
     suspend fun delete(code: String, profileId: Long)
+
+    @Query("DELETE FROM wishlist WHERE profileId = :profileId")
+    suspend fun deleteByProfile(profileId: Long)
 }

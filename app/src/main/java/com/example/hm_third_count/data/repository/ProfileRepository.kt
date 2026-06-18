@@ -1,8 +1,15 @@
 package com.example.hm_third_count.data.repository
 
+import com.example.hm_third_count.data.local.CollectionDao
 import com.example.hm_third_count.data.local.CountriesPreferences
+import com.example.hm_third_count.data.local.CountryNoteDao
+import com.example.hm_third_count.data.local.FavoriteDao
 import com.example.hm_third_count.data.local.ProfileDao
 import com.example.hm_third_count.data.local.ProfileEntity
+import com.example.hm_third_count.data.local.RecentViewDao
+import com.example.hm_third_count.data.local.SavedFilterDao
+import com.example.hm_third_count.data.local.VisitDao
+import com.example.hm_third_count.data.local.WishlistDao
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -13,7 +20,14 @@ import javax.inject.Singleton
 @Singleton
 class ProfileRepository @Inject constructor(
     private val profileDao: ProfileDao,
-    private val preferences: CountriesPreferences
+    private val preferences: CountriesPreferences,
+    private val visitDao: VisitDao,
+    private val wishlistDao: WishlistDao,
+    private val countryNoteDao: CountryNoteDao,
+    private val favoriteDao: FavoriteDao,
+    private val savedFilterDao: SavedFilterDao,
+    private val recentViewDao: RecentViewDao,
+    private val collectionDao: CollectionDao
 ) {
     val profiles: Flow<List<ProfileEntity>> = profileDao.observeAll()
 
@@ -77,10 +91,22 @@ class ProfileRepository @Inject constructor(
     }
 
     suspend fun delete(id: Long) {
+        deleteProfileData(id)
         profileDao.deleteById(id)
         val remaining = profileDao.observeAll().first()
         if (remaining.isNotEmpty() && preferences.activeProfileId.first() == id) {
             preferences.setActiveProfileId(remaining.first().id)
         }
+    }
+
+    /** Удаляет все пользовательские данные профиля до удаления самой строки profiles. */
+    private suspend fun deleteProfileData(profileId: Long) {
+        collectionDao.deleteByProfile(profileId)
+        visitDao.deleteByProfile(profileId)
+        wishlistDao.deleteByProfile(profileId)
+        countryNoteDao.deleteByProfile(profileId)
+        favoriteDao.deleteByProfile(profileId)
+        savedFilterDao.deleteByProfile(profileId)
+        recentViewDao.clearForProfile(profileId)
     }
 }

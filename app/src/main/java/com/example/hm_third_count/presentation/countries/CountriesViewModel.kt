@@ -25,20 +25,20 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.scan
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.zip
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * Реактивная сборка экрана (требования ДЗ):
+ * Экран списка стран: один [CountriesUiState] собирается из независимых источников.
  *
- * **Источники (≥3 независимых):** поток полной загрузки (merge старт + SharedFlow refresh → scan → flatMapLatest),
- * ветка поиска (debounce + distinctUntilChanged + combine retry + flatMapLatest), фильтр UI (StateFlow),
- * пара потоков Room через **zip**, настройка **DataStore** ([CountriesRepository.sortCountriesAz]), сырая строка поиска.
+ * **Инварианты UI:**
+ * - при непустом поиске показываем только результат поиска (без региональных фильтров);
+ * - при пустом поиске — полный список + фильтр региона / избранного;
+ * - избранное, visited-бейджи и пресеты всегда от активного профиля;
+ * - ошибка сети не перекрывает успешный offline-кэш, пустой результат поиска — не ошибка.
  *
- * **Операторы:** merge, scan, filter, combine, zip, debounce, distinctUntilChanged, flatMapLatest, map (в репозитории).
- *
- * **StateFlow** — итоговый [CountriesUiState]; **SharedFlow** — серия перезагрузок списка, не one-shot snackbar.
+ * Реактивная сборка: merge(refresh) + flatMapLatest для загрузки, debounce для поиска,
+ * combine для фильтров/настроек/journal/sync, StateFlow — итоговое состояние экрана.
  */
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 @HiltViewModel
@@ -117,10 +117,8 @@ class CountriesViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, SearchSlice.Inactive)
 
-    /** Два Flow из Room согласованы через **zip** (одинаковый частотный источник — observeAll). */
-    private val favoritesZipped = repository.favorites.zip(repository.favoriteCountriesFromRoom) { codes, snaps ->
-        codes to snaps
-    }
+    /** Избранное активного профиля — коды и offline-снимки из одной подписки Room. */
+    private val favoritesBundle = repository.favoritesBundle
 
     /**
      * Journal + presets + sync источник: visited-коды активного профиля, флаг показа бейджа,
@@ -144,8 +142,8 @@ class CountriesViewModel @Inject constructor(
         combine(allCountriesState, searchPipeline, _filter) { all, search, filter ->
             Triple(all, search, filter)
         },
-        combine(favoritesZipped, _searchQuery) { (favCodes, snaps), raw ->
-            Triple(favCodes, snaps, raw)
+        combine(favoritesBundle, _searchQuery) { bundle, raw ->
+            Triple(bundle.codes, bundle.snapshots, raw)
         },
         repository.sortCountriesAz,
         journalAndPresetsPart

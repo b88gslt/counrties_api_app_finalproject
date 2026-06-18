@@ -21,8 +21,8 @@ import org.junit.Rule
 import org.junit.Test
 
 /**
- * Integration: Repository + Fake API + Fake Room.
- * Закрывает требование ТЗ финального проекта «тесты на offline / sync».
+ * Offline-first сценарии репозитория стран (кэш + локальный fallback).
+ * Фоновые workers и SyncCoordinator покрыты в [SyncWorkersTest].
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class CountriesRepositoryOfflineTest {
@@ -143,6 +143,32 @@ class CountriesRepositoryOfflineTest {
 
         assertThat(result.isSuccess).isTrue()
         assertThat(result.getOrNull()?.map { it.code }).containsExactly("DEU")
+    }
+
+    @Test
+    fun `searchCountries returns empty list offline when cache has no matches`() = runTest {
+        val env = buildRepo()
+        env.api.nextResponse = FakeCountriesApi.ApiResponse.Success(sample)
+        env.repo.getAllCountries()
+
+        env.api.nextResponse = FakeCountriesApi.ApiResponse.NetworkError
+        val result = env.repo.searchCountries("zzz")
+
+        assertThat(result.isSuccess).isTrue()
+        assertThat(result.getOrNull()).isEmpty()
+    }
+
+    @Test
+    fun `getCountriesByRegion returns empty list offline when region absent in cache`() = runTest {
+        val env = buildRepo()
+        env.api.nextResponse = FakeCountriesApi.ApiResponse.Success(sample)
+        env.repo.getAllCountries()
+
+        env.api.nextResponse = FakeCountriesApi.ApiResponse.NetworkError
+        val result = env.repo.getCountriesByRegion("Antarctica")
+
+        assertThat(result.isSuccess).isTrue()
+        assertThat(result.getOrNull()).isEmpty()
     }
 
     @Test

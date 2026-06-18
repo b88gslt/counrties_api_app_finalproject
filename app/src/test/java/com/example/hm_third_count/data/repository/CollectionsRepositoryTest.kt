@@ -35,6 +35,9 @@ class CollectionsRepositoryTest {
             profileRepository = profileRepo,
             clock = clock
         )
+        itemDao.assignCollectionToProfile(1L, profile.id)
+        itemDao.assignCollectionToProfile(2L, profile.id)
+        itemDao.assignCollectionToProfile(3L, profile.id)
         return Triple(repo, itemDao, clock)
     }
 
@@ -101,5 +104,28 @@ class CollectionsRepositoryTest {
         // USA в коллекции 1 не должен пострадать.
         assertThat(itemDao.snapshot().map { it.countryCode to it.collectionId })
             .containsExactly("USA" to 1L)
+    }
+
+    @Test
+    fun `setCountryMembership does not remove country from another profile collections`() = runTest {
+        val itemDao = FakeCollectionItemDao()
+        val collectionDao = mockk<CollectionDao>(relaxed = true)
+        val profileRepo = mockk<ProfileRepository>()
+        every { profileRepo.activeProfile } returns flowOf(profile)
+        val repo = CollectionsRepository(
+            collectionDao = collectionDao,
+            collectionItemDao = itemDao,
+            profileRepository = profileRepo,
+            clock = TestClock()
+        )
+        itemDao.assignCollectionToProfile(1L, profile.id)
+        itemDao.assignCollectionToProfile(5L, 2L)
+        itemDao.upsert(CollectionItemEntity(1L, "DEU", 0L))
+        itemDao.upsert(CollectionItemEntity(5L, "DEU", 0L))
+
+        repo.setCountryMembership("DEU", selectedIds = emptySet())
+
+        assertThat(itemDao.snapshot().map { it.collectionId to it.countryCode })
+            .containsExactly(5L to "DEU")
     }
 }

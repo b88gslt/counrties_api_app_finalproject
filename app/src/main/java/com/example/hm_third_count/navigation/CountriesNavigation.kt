@@ -36,6 +36,7 @@ import com.example.hm_third_count.presentation.recent.RecentScreen
 import com.example.hm_third_count.presentation.recent.RecentViewModel
 import com.example.hm_third_count.presentation.settings.SettingsScreen
 import com.example.hm_third_count.presentation.settings.SettingsViewModel
+import com.example.hm_third_count.presentation.profile.ProfileSwitcherViewModel
 
 private object Routes {
     const val COUNTRIES_LIST = "countries/list"
@@ -171,12 +172,19 @@ private fun androidx.navigation.NavGraphBuilder.countriesGraph(navController: Na
     ) {
         composable(Routes.COUNTRIES_LIST) {
             val viewModel: CountriesViewModel = hiltViewModel()
+            val profileViewModel: ProfileSwitcherViewModel = hiltViewModel()
             val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+            val profileState by profileViewModel.uiState.collectAsStateWithLifecycle()
             CountriesScreen(
                 uiState = uiState,
                 onEvent = viewModel::onEvent,
                 onCountryClick = { code -> navController.navigate(Routes.detail(code)) },
-                onOpenRecent = { navController.navigate(Routes.COUNTRIES_RECENT) }
+                onOpenRecent = { navController.navigate(Routes.COUNTRIES_RECENT) },
+                profileState = profileState,
+                onSwitchProfile = profileViewModel::switch,
+                onCreateProfile = { name, color -> profileViewModel.create(name, color) },
+                onRenameProfile = { id, name -> profileViewModel.rename(id, name) },
+                onDeleteProfile = profileViewModel::delete
             )
         }
         composable(Routes.COUNTRIES_RECENT) {

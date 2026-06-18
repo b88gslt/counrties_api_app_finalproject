@@ -30,4 +30,7 @@ interface CollectionDao {
 
     @Query("DELETE FROM collections WHERE id = :id")
     suspend fun deleteById(id: Long)
+
+    @Query("DELETE FROM collections WHERE profileId = :profileId")
+    suspend fun deleteByProfile(profileId: Long)
 }

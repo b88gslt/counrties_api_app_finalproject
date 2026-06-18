@@ -42,9 +42,12 @@ class CollectionsRepository @Inject constructor(
     fun observeCountryCodesInCollection(id: Long): Flow<List<String>> =
         collectionItemDao.observeByCollection(id).map { items -> items.map { it.countryCode } }
 
-    /** В каких коллекциях находится эта страна. */
+    /** В каких коллекциях активного профиля находится эта страна. */
     fun observeCollectionsForCountry(code: String): Flow<List<Long>> =
-        collectionItemDao.observeCollectionsForCountry(code)
+        profileRepository.activeProfile.flatMapLatest { p ->
+            if (p == null) flowOf(emptyList())
+            else collectionItemDao.observeCollectionsForCountry(code, p.id)
+        }
 
     suspend fun create(name: String, colorHex: String): Long {
         val profile = profileRepository.activeProfile.first() ?: return -1L
@@ -94,7 +97,11 @@ class CollectionsRepository @Inject constructor(
      * добавить недостающие, убрать лишние.
      */
     suspend fun setCountryMembership(countryCode: String, selectedIds: Set<Long>) {
-        val current = collectionItemDao.observeCollectionsForCountry(countryCode).first().toSet()
+        val profile = profileRepository.activeProfile.first() ?: return
+        val current = collectionItemDao
+            .observeCollectionsForCountry(countryCode, profile.id)
+            .first()
+            .toSet()
         val toAdd = selectedIds - current
         val toRemove = current - selectedIds
         toAdd.forEach { id -> addCountry(id, countryCode) }
